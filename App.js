@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -38,16 +38,32 @@ const Tab = createBottomTabNavigator();
 function Tabs() {
   const { isStaff } = useAuth();
   const { count } = useCart();
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.orange,
         tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
-        tabBarIcon: ({ color, size }) => {
-          const icons = { Home: 'home', Orders: 'receipt', Deliveries: 'bicycle', Profile: 'person' };
-          return <Ionicons name={icons[route.name]} size={size} color={color} />;
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          height: 58 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: Math.max(insets.bottom, 6),
+        },
+        tabBarBadgeStyle: { backgroundColor: colors.orange, color: colors.onAccent, fontWeight: '800' },
+        tabBarIcon: ({ color, size, focused }) => {
+          const icons = {
+            Home: ['home', 'home-outline'],
+            Orders: ['receipt', 'receipt-outline'],
+            Deliveries: ['bicycle', 'bicycle-outline'],
+            Profile: ['person', 'person-outline'],
+          };
+          const [on, off] = icons[route.name];
+          return <Ionicons name={focused ? on : off} size={size} color={color} />;
         },
       })}
     >
@@ -84,7 +100,10 @@ function Root() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.text,
+        headerShadowVisible: false,
+        headerTitleStyle: { fontWeight: '800', fontSize: 18 },
         contentStyle: { backgroundColor: colors.bg },
+        animation: 'slide_from_right',
       }}
     >
       {!user ? (
@@ -94,7 +113,7 @@ function Root() {
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
           <Stack.Screen name="Shop" component={ShopScreen} options={({ route }) => ({ title: route.params.shop.name })} />
           <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'Checkout' }} />
-          <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Your order' }} />
+          <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order details' }} />
         </>
       )}
     </Stack.Navigator>

@@ -1,4 +1,5 @@
 import { CURRENCY, DELIVERY } from './config';
+import { colors } from './theme';
 
 export function haversineKm(a, b) {
   const R = 6371;
@@ -31,12 +32,26 @@ export function toShop(row) {
   };
 }
 
-export const money =(n) => `${CURRENCY}${Number(n || 0).toFixed(2)}`;
+export const money = (n) => `${CURRENCY}${Number(n || 0).toFixed(2)}`;
 
 export const STATUS = {
-  new: { label: 'Waiting for rider', step: 0 },
-  accepted: { label: 'Rider is going to the shop', step: 1 },
-  picked_up: { label: 'On the way to you', step: 2 },
-  delivered: { label: 'Delivered', step: 3 },
-  cancelled: { label: 'Cancelled', step: -1 },
+  new: { label: 'Waiting for a rider', short: 'New', step: 0, icon: 'time', color: colors.orange, bg: colors.orangeSoft },
+  accepted: { label: 'Rider is heading to the shop', short: 'Accepted', step: 1, icon: 'storefront', color: colors.info, bg: colors.infoSoft },
+  picked_up: { label: 'On the way to you', short: 'On the way', step: 2, icon: 'bicycle', color: colors.teal, bg: colors.tealSoft },
+  delivered: { label: 'Delivered', short: 'Delivered', step: 3, icon: 'checkmark-circle', color: colors.ok, bg: colors.okSoft },
+  cancelled: { label: 'Cancelled', short: 'Cancelled', step: -1, icon: 'close-circle', color: colors.danger, bg: colors.dangerSoft },
 };
+
+export function formatDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (sameDay) return `Today, ${time}`;
+  return `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`;
+}
+
+export function firstName(name) {
+  return String(name || '').trim().split(/\s+/)[0] || '';
+}

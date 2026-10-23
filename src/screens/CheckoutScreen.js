@@ -1,54 +1,58 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import { MapView, Marker } from '../MapSafe';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { supabase } from '../supabase';
 import { useAuth } from '../AuthContext';
 import { useCart } from '../CartContext';
-import { Button, Field } from '../ui';
-import { colors } from '../theme';
-import { DEFAULT_REGION } from '../config';
-import { deliveryFee, money } from '../utils';
+import { Button, Card, Field, EmptyState } from '../ui';
+import { colors, radius, type } from '../theme';
+import { deliveryFee, haversineKm, money } from '../utils';
 
 export default function CheckoutScreen({ navigation }) {
   const { user, profile } = useAuth();
   const { shop, list, subtotal, clear } = useCart();
   const [pin, setPin] = useState(null);
+  const [locState, setLocState] = useState('loading'); // loading | ok | denied | error
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const mapRef = useRef(null);
 
   const shopLoc = shop?.location;
 
-  // Start the pin at the phone location if allowed.
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        const pos = await Location.getCurrentPositionAsync({});
-        const here = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        setPin(here);
-        mapRef.current?.animateToRegion({ ...here, latitudeDelta: 0.01, longitudeDelta: 0.01 }, 600);
-      } catch (e) {
-        // ignore: customer can tap the map
+  const locate = useCallback(async () => {
+    setLocState('loading');
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocState('denied');
+        return;
       }
-    })();
+      const pos = await Location.getCurrentPositionAsync({});
+      setPin({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      setLocState('ok');
+    } catch (e) {
+      setLocState('error');
+    }
   }, []);
 
+  useEffect(() => {
+    locate();
+  }, [locate]);
+
+  const km = useMemo(() => (pin && shopLoc ? haversineKm(shopLoc, pin) : null), [pin, shopLoc]);
   const fee = useMemo(() => (pin ? deliveryFee(shopLoc, pin) : null), [pin, shopLoc]);
   const total = subtotal + (fee || 0);
 
   if (!shop || list.length === 0) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center' }}>
-        <Text style={{ color: colors.muted, textAlign: 'center' }}>Your cart is empty.</Text>
+      <View style={s.screen}>
+        <EmptyState icon="bag-outline" title="Your cart is empty" text="Add something from a shop to place an order." />
       </View>
     );
   }
 
   const placeOrder = async () => {
-    if (!pin) return Alert.alert('Delivery point', 'Tap the map to put the pin where we should deliver.');
+    if (!pin) return Alert.alert('Delivery location', 'We need your location to deliver. Tap "Use my location".');
     setBusy(true);
     try {
       const { data, error } = await supabase
@@ -78,78 +82,137 @@ export default function CheckoutScreen({ navigation }) {
         routes: [{ name: 'Tabs' }, { name: 'OrderDetail', params: { orderId: data.id } }],
       });
     } catch (e) {
-      Alert.alert('Could not place the order', 'Check your internet and try again.');
+      Alert.alert('Could not place the order', 'Check your internet connection and try again.');
     } finally {
       setBusy(false);
     }
   };
 
+  const locIcon = { loading: 'locate', ok: 'location', denied: 'location-outline', error: 'location-outline' }[locState];
+  const locColor = locState === 'ok' ? colors.ok : locState === 'loading' ? colors.muted : colors.danger;
+
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-      <Text style={s.h}>From {shop.name}</Text>
-      {list.map((i) => (
-        <View key={i.id} style={s.line}>
-          <Text style={s.t}>
-            {i.qty} × {i.name}
-          </Text>
-          <Text style={s.t}>{money(i.qty * i.price)}</Text>
-        </View>
-      ))}
+    <View style={s.screen}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130, gap: 16 }} showsVerticalScrollIndicator={false}>
+        {/* Order summary */}
+        <Card>
+          <Text style={s.label}>Order from</Text>
+          <Text style={s.shop}>{shop.name}</Text>
+          <View style={s.divider} />
+          {list.map((i) => (
+            <View key={i.id} style={s.line}>
+              <Text style={s.qty}>{i.qty}×</Text>
+              <Text style={[s.t, { flex: 1 }]} numberOfLines={1}>
+                {i.name}
+              </Text>
+              <Text style={s.t}>{money(i.qty * i.price)}</Text>
+            </View>
+          ))}
+        </Card>
 
-      <Text style={[s.h, { marginTop: 20 }]}>Where should we deliver?</Text>
-      <Text style={s.muted}>Tap the map to move the pin.</Text>
-      <MapView
-        ref={mapRef}
-        style={s.map}
-        initialRegion={shopLoc ? { ...shopLoc, latitudeDelta: 0.04, longitudeDelta: 0.04 } : DEFAULT_REGION}
-        onPress={(e) => setPin(e.nativeEvent.coordinate)}
-      >
-        {shopLoc ? <Marker coordinate={shopLoc} title={shop.name} pinColor="orange" /> : null}
-        {pin ? (
-          <Marker coordinate={pin} title="Deliver here" draggable onDragEnd={(e) => setPin(e.nativeEvent.coordinate)} />
-        ) : null}
-      </MapView>
+        {/* Delivery location */}
+        <Card>
+          <Text style={s.label}>Deliver to</Text>
+          <View style={s.locRow}>
+            <View style={[s.locIcon, { backgroundColor: locState === 'ok' ? colors.okSoft : colors.surface2 }]}>
+              {locState === 'loading' ? (
+                <ActivityIndicator color={colors.orange} />
+              ) : (
+                <Ionicons name={locIcon} size={22} color={locColor} />
+              )}
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={s.locTitle}>
+                {locState === 'ok'
+                  ? 'Your current location'
+                  : locState === 'loading'
+                  ? 'Finding your location…'
+                  : 'Location needed'}
+              </Text>
+              <Text style={s.locSub}>
+                {locState === 'ok' && km !== null
+                  ? `About ${km.toFixed(1)} km from the shop`
+                  : locState === 'denied'
+                  ? 'Allow location so the rider can find you.'
+                  : locState === 'error'
+                  ? 'We could not get your location. Turn on GPS and try again.'
+                  : 'Please wait a moment.'}
+              </Text>
+            </View>
+          </View>
+          {locState === 'denied' || locState === 'error' || locState === 'ok' ? (
+            <Button
+              title={locState === 'ok' ? 'Update my location' : 'Use my location'}
+              icon="navigate"
+              small
+              variant="ghost"
+              onPress={locate}
+              style={{ marginTop: 12 }}
+            />
+          ) : null}
+          <Field
+            icon="create-outline"
+            placeholder="Note for the rider (house colour, landmark…)"
+            value={note}
+            onChangeText={setNote}
+            style={{ marginTop: 12 }}
+          />
+        </Card>
 
-      <Field
-        placeholder="Note for the rider (house colour, landmark…)"
-        value={note}
-        onChangeText={setNote}
-        style={{ marginTop: 12 }}
-      />
+        {/* Payment + totals */}
+        <Card>
+          <Text style={s.label}>Payment</Text>
+          <View style={s.payRow}>
+            <Ionicons name="cash-outline" size={22} color={colors.ok} />
+            <Text style={[s.t, { marginLeft: 10, flex: 1 }]}>Cash when the rider arrives</Text>
+          </View>
+          <View style={s.divider} />
+          <View style={s.line}>
+            <Text style={[s.t, { flex: 1, color: colors.muted }]}>Items</Text>
+            <Text style={s.t}>{money(subtotal)}</Text>
+          </View>
+          <View style={s.line}>
+            <Text style={[s.t, { flex: 1, color: colors.muted }]}>Delivery</Text>
+            <Text style={s.t}>{fee === null ? '—' : money(fee)}</Text>
+          </View>
+          <View style={s.divider} />
+          <View style={s.line}>
+            <Text style={[s.totalLabel, { flex: 1 }]}>Total</Text>
+            <Text style={s.totalValue}>{money(total)}</Text>
+          </View>
+        </Card>
+      </ScrollView>
 
-      <View style={s.totals}>
-        <View style={s.line}>
-          <Text style={s.t}>Items</Text>
-          <Text style={s.t}>{money(subtotal)}</Text>
-        </View>
-        <View style={s.line}>
-          <Text style={s.t}>Delivery</Text>
-          <Text style={s.t}>{fee === null ? 'Set the pin' : money(fee)}</Text>
-        </View>
-        <View style={s.line}>
-          <Text style={[s.t, { fontWeight: '800', fontSize: 18 }]}>Total</Text>
-          <Text style={[s.t, { fontWeight: '800', fontSize: 18, color: colors.orange }]}>{money(total)}</Text>
-        </View>
-        <Text style={s.muted}>Payment: cash when the rider arrives.</Text>
+      <View style={s.footer}>
+        <Button title={`Place order · ${money(total)}`} icon="checkmark-circle" onPress={placeOrder} loading={busy} disabled={!pin} />
       </View>
-
-      <Button title="Place order" onPress={placeOrder} loading={busy} style={{ marginTop: 16 }} />
-    </ScrollView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  h: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  line: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
+  screen: { flex: 1, backgroundColor: colors.bg },
+  label: { ...type.label, color: colors.muted },
+  shop: { ...type.h1, color: colors.text, marginTop: 4 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
+  line: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+  qty: { color: colors.orange, fontWeight: '800', width: 34, fontSize: 15 },
   t: { color: colors.text, fontSize: 15 },
-  muted: { color: colors.muted, marginBottom: 8 },
-  map: { height: 260, borderRadius: 16, overflow: 'hidden' },
-  totals: {
-    marginTop: 16,
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
+  locRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  locIcon: { width: 46, height: 46, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  locTitle: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  locSub: { color: colors.muted, marginTop: 2, fontSize: 13, lineHeight: 18 },
+  payRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  totalLabel: { color: colors.text, fontWeight: '800', fontSize: 18 },
+  totalValue: { color: colors.orange, fontWeight: '800', fontSize: 20 },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 16,
+    backgroundColor: colors.bg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
 });

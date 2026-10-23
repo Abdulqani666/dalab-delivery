@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Linking } from 'react-native';
-import { MapView, Marker } from '../MapSafe';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../supabase';
 import { useLive } from '../useLive';
-import { colors } from '../theme';
-import { Button } from '../ui';
-import { money, STATUS } from '../utils';
+import { colors, radius, type } from '../theme';
+import { Button, Card, EmptyState, Avatar } from '../ui';
+import { money, STATUS, formatDate } from '../utils';
 
-const STEPS = ['Order placed', 'Rider accepted', 'On the way', 'Delivered'];
+const STEPS = [
+  { label: 'Order placed', icon: 'receipt' },
+  { label: 'Rider accepted', icon: 'person' },
+  { label: 'On the way', icon: 'bicycle' },
+  { label: 'Delivered', icon: 'checkmark' },
+];
 
 export default function OrderDetailScreen({ route }) {
   const { orderId } = route.params;
@@ -24,18 +29,23 @@ export default function OrderDetailScreen({ route }) {
 
   useLive('order-detail', 'orders', `id=eq.${orderId}`, load);
 
-  if (order === null) return <ActivityIndicator color={colors.orange} style={{ marginTop: 40 }} />;
+  if (order === null) return <ActivityIndicator color={colors.orange} style={{ marginTop: 60 }} />;
   if (order === false)
-    return <Text style={{ color: colors.muted, textAlign: 'center', marginTop: 40 }}>Order not found.</Text>;
+    return (
+      <View style={s.screen}>
+        <EmptyState icon="alert-circle-outline" title="Order not found" />
+      </View>
+    );
 
-  const step = STATUS[order.status]?.step ?? 0;
+  const st = STATUS[order.status] || STATUS.new;
+  const step = st.step;
   const cancelled = order.status === 'cancelled';
 
   const cancel = () =>
-    Alert.alert('Cancel order?', 'You can only cancel before a rider accepts.', [
-      { text: 'No', style: 'cancel' },
+    Alert.alert('Cancel this order?', 'You can only cancel before a rider accepts it.', [
+      { text: 'Keep order', style: 'cancel' },
       {
-        text: 'Yes, cancel',
+        text: 'Cancel order',
         style: 'destructive',
         onPress: async () => {
           const { data, error } = await supabase.rpc('cancel_order', { p_order: order.id });
@@ -45,75 +55,132 @@ export default function OrderDetailScreen({ route }) {
       },
     ]);
 
-  const region = order.dropoff ? { ...order.dropoff, latitudeDelta: 0.03, longitudeDelta: 0.03 } : undefined;
-
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-      <Text style={s.shop}>{order.shop_name}</Text>
-      <Text style={[s.status, cancelled && { color: colors.danger }]}>{STATUS[order.status]?.label}</Text>
+    <ScrollView style={s.screen} contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 16 }} showsVerticalScrollIndicator={false}>
+      {/* Status */}
+      <View style={[s.hero, { backgroundColor: st.bg }]}>
+        <View style={[s.heroIcon, { backgroundColor: st.color }]}>
+          <Ionicons name={st.icon} size={30} color={colors.bg} />
+        </View>
+        <Text style={[s.heroTitle, { color: st.color }]}>{st.label}</Text>
+        <Text style={s.heroSub}>
+          {order.shop_name} · {formatDate(order.created_at)}
+        </Text>
+      </View>
 
+      {/* Timeline */}
       {!cancelled && (
-        <View style={s.steps}>
-          {STEPS.map((label, i) => (
-            <View key={label} style={s.stepRow}>
-              <View style={[s.dot, i <= step && { backgroundColor: colors.orange, borderColor: colors.orange }]} />
-              <Text style={[s.stepText, i <= step && { color: colors.text }]}>{label}</Text>
+        <Card>
+          {STEPS.map((x, i) => {
+            const done = i <= step;
+            const last = i === STEPS.length - 1;
+            return (
+              <View key={x.label} style={s.stepRow}>
+                <View style={s.stepLeft}>
+                  <View style={[s.dot, done && { backgroundColor: colors.orange, borderColor: colors.orange }]}>
+                    <Ionicons name={done ? 'checkmark' : x.icon} size={14} color={done ? colors.onAccent : colors.muted} />
+                  </View>
+                  {!last && <View style={[s.line, i < step && { backgroundColor: colors.orange }]} />}
+                </View>
+                <Text style={[s.stepText, done && { color: colors.text, fontWeight: '700' }]}>{x.label}</Text>
+              </View>
+            );
+          })}
+        </Card>
+      )}
+
+      {/* Rider */}
+      {order.rider_name && !cancelled ? (
+        <Card>
+          <Text style={s.label}>Your rider</Text>
+          <View style={s.riderRow}>
+            <Avatar name={order.rider_name} size={48} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={s.riderName}>{order.rider_name}</Text>
+              <Text style={s.riderSub}>Moto rider</Text>
+            </View>
+            {order.rider_phone && order.status !== 'delivered' ? (
+              <Button title="Call" icon="call" small onPress={() => Linking.openURL(`tel:${order.rider_phone}`)} />
+            ) : null}
+          </View>
+        </Card>
+      ) : null}
+
+      {/* Receipt */}
+      <Card>
+        <Text style={s.label}>Order summary</Text>
+        <View style={{ marginTop: 10 }}>
+          {order.items?.map((i) => (
+            <View key={i.id} style={s.rowLine}>
+              <Text style={s.qty}>{i.qty}×</Text>
+              <Text style={[s.t, { flex: 1 }]} numberOfLines={1}>
+                {i.name}
+              </Text>
+              <Text style={s.t}>{money(i.qty * i.price)}</Text>
             </View>
           ))}
         </View>
-      )}
-
-      {region ? (
-        <MapView style={s.map} initialRegion={region}>
-          {order.shop_location ? <Marker coordinate={order.shop_location} title={order.shop_name} pinColor="orange" /> : null}
-          <Marker coordinate={order.dropoff} title="Delivery point" pinColor="green" />
-          {order.rider_location ? <Marker coordinate={order.rider_location} title="Rider" pinColor="blue" /> : null}
-        </MapView>
-      ) : null}
-
-      <View style={s.box}>
-        {order.items?.map((i) => (
-          <View key={i.id} style={s.line}>
-            <Text style={s.t}>
-              {i.qty} × {i.name}
-            </Text>
-            <Text style={s.t}>{money(i.qty * i.price)}</Text>
-          </View>
-        ))}
-        <View style={s.line}>
-          <Text style={s.t}>Delivery</Text>
+        <View style={s.divider} />
+        <View style={s.rowLine}>
+          <Text style={[s.t, { flex: 1, color: colors.muted }]}>Delivery</Text>
           <Text style={s.t}>{money(order.delivery_fee)}</Text>
         </View>
-        <View style={s.line}>
-          <Text style={[s.t, { fontWeight: '800' }]}>Total (cash)</Text>
-          <Text style={[s.t, { fontWeight: '800', color: colors.orange }]}>{money(order.total)}</Text>
+        <View style={s.rowLine}>
+          <Text style={[s.total, { flex: 1 }]}>Total (cash)</Text>
+          <Text style={[s.total, { color: colors.orange }]}>{money(order.total)}</Text>
         </View>
-      </View>
+        {order.note ? (
+          <View style={s.noteBox}>
+            <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.muted} />
+            <Text style={s.note}>{order.note}</Text>
+          </View>
+        ) : null}
+      </Card>
 
-      {order.rider_phone && order.status !== 'delivered' && !cancelled ? (
-        <Button
-          title={`Call rider${order.rider_name ? ` (${order.rider_name})` : ''}`}
-          color={colors.teal}
-          onPress={() => Linking.openURL(`tel:${order.rider_phone}`)}
-          style={{ marginTop: 14 }}
-        />
-      ) : null}
-      {order.status === 'new' ? (
-        <Button title="Cancel order" color={colors.danger} onPress={cancel} style={{ marginTop: 14 }} />
-      ) : null}
+      {order.status === 'new' ? <Button title="Cancel order" variant="danger" icon="close" onPress={cancel} /> : null}
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
-  shop: { color: colors.text, fontSize: 22, fontWeight: '800' },
-  status: { color: colors.teal, fontSize: 16, fontWeight: '700', marginTop: 4 },
-  steps: { marginTop: 14, backgroundColor: colors.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },
-  stepRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.border, marginRight: 12 },
-  stepText: { color: colors.muted, fontSize: 15 },
-  map: { height: 240, borderRadius: 16, overflow: 'hidden', marginTop: 14 },
-  box: { marginTop: 14, backgroundColor: colors.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border },
-  line: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  screen: { flex: 1, backgroundColor: colors.bg },
+  hero: { borderRadius: radius.xl, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16 },
+  heroIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  heroTitle: { ...type.h1, marginTop: 14, textAlign: 'center' },
+  heroSub: { color: colors.muted, marginTop: 4, textAlign: 'center' },
+
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', minHeight: 44 },
+  stepLeft: { alignItems: 'center', width: 30 },
+  dot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  line: { width: 2, flex: 1, backgroundColor: colors.border, marginVertical: 2, minHeight: 14 },
+  stepText: { color: colors.muted, fontSize: 15, marginLeft: 12, paddingTop: 4 },
+
+  label: { ...type.label, color: colors.muted },
+  riderRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  riderName: { color: colors.text, fontWeight: '700', fontSize: 16 },
+  riderSub: { color: colors.muted, marginTop: 2, fontSize: 13 },
+
+  rowLine: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+  qty: { color: colors.orange, fontWeight: '800', width: 34, fontSize: 15 },
   t: { color: colors.text, fontSize: 15 },
+  total: { color: colors.text, fontWeight: '800', fontSize: 17 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 10 },
+  noteBox: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.sm,
+    padding: 10,
+  },
+  note: { color: colors.muted, flex: 1, fontSize: 14 },
 });
