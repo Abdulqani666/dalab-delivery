@@ -11,9 +11,6 @@
       "bundleIdentifier": "com.dalab.delivery",
       "supportsTablet": false,
       "buildNumber": "1",
-      "config": {
-        "googleMapsApiKey": "PUT_YOUR_GOOGLE_MAPS_API_KEY"
-      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -30,12 +27,7 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
-      ],
-      "config": {
-        "googleMaps": {
-          "apiKey": "PUT_YOUR_GOOGLE_MAPS_API_KEY"
-        }
-      }
+      ]
     },
     "plugins": [
       [
