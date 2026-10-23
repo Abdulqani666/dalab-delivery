@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Linking } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { MapView, Marker } from '../MapSafe';
 import { supabase } from '../supabase';
 import { useLive } from '../useLive';
 import { colors } from '../theme';

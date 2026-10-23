@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { MapView, Marker } from '../MapSafe';
 import * as Location from 'expo-location';
 import { supabase } from '../supabase';
 import { useAuth } from '../AuthContext';
