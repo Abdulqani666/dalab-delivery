@@ -1,0 +1,12 @@
+name: Publish update to Dalab Delivery app
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  publish_update:
+    name: Publish update
+    type: update
+    params:
+      branch: preview
