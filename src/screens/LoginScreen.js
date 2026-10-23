@@ -8,13 +8,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../AuthContext';
 import { Button, Field } from '../ui';
 import { colors, radius, type } from '../theme';
-import { APP_NAME } from '../config';
+import { APP_NAME, SUPPORT_WHATSAPP } from '../config';
 
 export default function LoginScreen() {
   const { signIn, signUp } = useAuth();
@@ -24,6 +25,19 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const forgot = () => {
+    const digits = phone.replace(/[^0-9]/g, '');
+    if (digits.length < 7) return Alert.alert('Forgot password', 'First type your phone number above, then tap "Forgot password?" again.');
+    const text = `Hello Dalab Delivery, I forgot my password. My phone number is ${digits}. Please reset it.`;
+    if (!SUPPORT_WHATSAPP) {
+      return Alert.alert('Reset your password', 'Please contact Dalab Delivery support with your phone number and we will reset your password.');
+    }
+    Alert.alert('Reset your password', 'We will open WhatsApp so you can ask support to reset it. They will give you a new password.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(text)}`) },
+    ]);
+  };
 
   const submit = async () => {
     const digits = phone.replace(/[^0-9]/g, '');
@@ -103,11 +117,17 @@ export default function LoginScreen() {
             </View>
           </View>
 
+          {mode === 'login' && (
+            <TouchableOpacity onPress={forgot} style={s.forgot} hitSlop={8}>
+              <Text style={s.footLink}>Forgot password?</Text>
+            </TouchableOpacity>
+          )}
+
           <Button
             title={mode === 'signup' ? 'Create account' : 'Log in'}
             onPress={submit}
             loading={busy}
-            style={{ marginTop: 22 }}
+            style={{ marginTop: mode === 'login' ? 14 : 22 }}
           />
 
           <Text style={s.foot}>
@@ -151,6 +171,7 @@ const s = StyleSheet.create({
   tabText: { color: colors.muted, fontWeight: '700' },
   tabTextOn: { color: colors.text },
   eye: { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  forgot: { alignSelf: 'flex-end', marginTop: 12 },
   foot: { color: colors.muted, textAlign: 'center', marginTop: 22, fontSize: 14 },
   footLink: { color: colors.orange, fontWeight: '700' },
 });

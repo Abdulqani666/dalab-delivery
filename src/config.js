@@ -1,6 +1,8 @@
 // ---- Dalab Delivery settings. Change the values here, nowhere else. ----
 
 export const APP_NAME = 'Dalab Delivery';
+// WhatsApp number (digits only, with country code, e.g. 252901234567) that handles password resets.
+export const SUPPORT_WHATSAPP = '';
 export const CURRENCY = '$';
 
 // Delivery fee = baseFee + perKm * distance(shop -> customer), never below minFee.
