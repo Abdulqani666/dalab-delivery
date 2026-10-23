@@ -3,53 +3,17 @@
     "name": "Dalab Delivery",
     "slug": "dalab-delivery",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0f1a1a",
-    "ios": {
-      "bundleIdentifier": "com.dalab.delivery",
-      "supportsTablet": false,
-      "buildNumber": "1",
-      "config": {
-        "googleMapsApiKey": "PUT_YOUR_GOOGLE_MAPS_API_KEY"
-      },
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
-    "android": {
-      "package": "com.dalab.delivery",
-      "versionCode": 1,
-      "adaptiveIcon": {
-        "backgroundColor": "#0f1a1a",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
-      ],
-      "config": {
-        "googleMaps": {
-          "apiKey": "PUT_YOUR_GOOGLE_MAPS_API_KEY"
-        }
-      }
-    },
-    "plugins": [
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "Dalab Delivery uses your location to set the delivery point and to track your order."
-        }
-      ]
-    ],
     "owner": "abdiqanimuse124s-team",
     "extra": {
       "eas": {
         "projectId": "5a5a0cd7-e33e-4704-9b72-4f27c5210966"
       }
+    },
+    "android": {
+      "package": "com.dalab.delivery"
+    },
+    "ios": {
+      "bundleIdentifier": "com.dalab.delivery"
     }
   }
 }
